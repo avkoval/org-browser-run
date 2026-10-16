@@ -58,6 +58,16 @@ Chrome 136+ refuses remote debugging on the default profile."
   "Google Docs comment/reply limit in UTF-8 bytes (about 1100 Cyrillic chars)."
   :type 'integer)
 
+(defcustom org-browser-run-done-state t
+  "TODO state set on the heading after a successful submit run.
+t uses the buffer's first done keyword (DONE in most files), a
+string names the state, nil leaves the state unchanged.  Only a run
+that reports STATUS: submitted changes it; stage and locate runs
+never do."
+  :type '(choice (const :tag "First done keyword" t)
+                 (string :tag "State")
+                 (const :tag "Leave unchanged" nil)))
+
 (defconst org-browser-run--log-buffer "*org-browser-run*")
 
 (defvar org-browser-run--process nil)
@@ -236,6 +246,22 @@ Do the TASK in the browser following your instructions and finish with the STATU
                (org-end-of-meta-data)
                (insert ":BROWSER_LOG:\n" line ":END:\n")))))))))
 
+(defun org-browser-run--mark-done (status)
+  "Set the done state on the run's heading after a successful submit."
+  (let ((m org-browser-run--marker))
+    (when (and org-browser-run-done-state
+               (equal org-browser-run--mode "submit")
+               (equal status "submitted")
+               m (marker-buffer m))
+      (with-current-buffer (marker-buffer m)
+        (org-with-wide-buffer
+         (goto-char m)
+         (let ((state (if (stringp org-browser-run-done-state)
+                          org-browser-run-done-state
+                        (car org-done-keywords))))
+           (when (and state (not (member (org-get-todo-state) org-done-keywords)))
+             (org-todo state))))))))
+
 (defun org-browser-run--sentinel (proc _event)
   (unless (process-live-p proc)
     (let* ((text (or org-browser-run--result ""))
@@ -247,6 +273,7 @@ Do the TASK in the browser following your instructions and finish with the STATU
                          (truncate-string-to-width text 300))))
            (tab (org-browser-run--field "TAB" text)))
       (org-browser-run--record status tab detail)
+      (org-browser-run--mark-done status)
       (when-let* ((cfg (process-get proc 'mcp-config))) (ignore-errors (delete-file cfg)))
       (setq org-browser-run--process nil)
       (message "org-browser-run: %s — %s" status detail))))

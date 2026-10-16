@@ -130,13 +130,37 @@ Properties the agent understands:
 One `#+begin_example` block is one paragraph and is pasted verbatim. A heading with the `CUSTOM_ID` `howto` (see
 `org-browser-run-context-ids`) is sent to the agent with every run as general context.
 
+### Evidence references
+
+Review items usually cite their evidence: code lines, a text extraction of another document. Write them as org links,
+so they open with `C-c C-o` (or a click) and export as real links:
+
+- **A line is an org link with a line number and a short label:**
+  `[[file:refs/ksk-bz/addons/kms/services.py::95][kms/services.py:L95]]`. A number after `::` is an exact line number
+  (text after `::` would be a content search, so always write the number). One link per line; a range is the first
+  line plus its end, `[[file:refs/x/models/users.py::152][models/users.py:L152]]–154`; a list is several links. Bare
+  forms like `x.py:152`, `x.py:152-154` or a continuation `:186` are not clickable.
+- **The label** is the last two path components plus `:LNN` (`all/values.yaml:L171`), enough to tell same-named files
+  apart while keeping the line short.
+- **Paths are relative to the org file's folder.** Sources outside the project go into a `refs/` folder next to the org
+  file, as symlinks to the checkouts: `refs/btz-deployment -> /abs/path/to/btz-deployment/`. The links then work
+  wherever the review folder sits, and the review never copies code.
+- **Documents cited by line** (a `.docx` specification, a deployment guide) are converted once to text in `refs/`
+  (`pandoc -t plain --wrap=none guide.docx -o refs/guide.txt`), so the line numbers stay fixed.
+- **A file or directory without a line** is a plain org link: `[[file:refs/ksk-ki/scripts/]]`.
+- **Pin the version.** Line numbers are only true for one commit. Name the commit of each `refs/` repo in the `howto`
+  section, and check every link against it before handing the file over.
+
+Hyperbole's `"path:LNN"` form is for places without org links (code comments, Markdown, chat); in org files use the
+links above.
+
 ## Usage
 
 | Key       | Command                         | What happens                                                                     |
 |-----------|---------------------------------|----------------------------------------------------------------------------------|
 | `C-c n l` | `org-browser-run-locate`        | Only finds the place: opens the thread or highlights the text. Types nothing.    |
 | `C-c n s` | `org-browser-run-stage`         | Prepares the action and stops before the final click.                            |
-| `C-c n S` | `org-browser-run-submit`        | Same, plus the final click and a check; asks for confirmation first.             |
+| `C-c n S` | `org-browser-run-submit`        | Same, plus the final click and a check; asks first; marks the heading `DONE`.    |
 | `C-c n k` | `org-browser-run-kill`          | Stops the running agent.                                                         |
 | `C-c n c` | `org-browser-run-start-chrome`  | Starts the controlled browser.                                                   |
 
@@ -144,7 +168,9 @@ The recommended loop for each heading:
 
 1. `C-c n s` (stage). The reply is typed but not sent; or Find and Replace is filled with the match highlighted.
 2. Check it in the browser. Click «Reply» / «Replace» yourself, or run `C-c n S` to let the agent do it.
-3. Mark the heading `DONE` yourself. The agent never changes TODO states.
+3. A successful submit run (`STATUS: submitted`) marks the heading `DONE` (the buffer's first done keyword; see
+   `org-browser-run-done-state`). If you clicked in the browser yourself after a stage run, mark it `DONE` by hand.
+   Stage, locate and failed runs never change the TODO state.
 
 Progress streams into the `*org-browser-run*` buffer. When the run ends, the heading gets:
 
@@ -181,6 +207,7 @@ read by the agent, so it does not repeat an action that was already submitted.
 | `org-browser-run-allowed-states`  | `("TODO")`                           |
 | `org-browser-run-context-ids`     | `("howto")`                          |
 | `org-browser-run-comment-limit`   | `2048`                               |
+| `org-browser-run-done-state`      | `t` (first done keyword; `nil` off)  |
 
 To teach the agent new task kinds or another web editor, edit [agent-prompt.md](agent-prompt.md). No Elisp changes are
 needed; the prompt is read on every run.
